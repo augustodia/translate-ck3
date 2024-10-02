@@ -6,6 +6,6 @@ export default defineConfig({
   plugins: [vue()],
   base: '/translate-ck3/',
   server: {
-    https: true,
+    // https: true,
   },
 })

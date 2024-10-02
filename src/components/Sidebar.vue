@@ -1,7 +1,7 @@
 <!-- src/components/Sidebar.vue -->
 <template>
   <div class="sidebar">
-    <ul>
+    <ul class="tree">
       <TreeNode v-for="child in rootNode.children" :key="child.path" :node="child" @select-file="onSelectFile" />
     </ul>
   </div>
@@ -39,5 +39,12 @@ export default defineComponent({
   overflow-y: auto;
   border-right: 1px solid #ccc;
   height: calc(100vh - 90px);
+}
+
+.tree {
+  list-style: none;
+  margin: 8px 0;
+  padding-left: 8px;
+  position: relative;
 }
 </style>
