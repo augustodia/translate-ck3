@@ -6,7 +6,7 @@
       <div>
         <label for="prevTranslationZip">Tradução Anterior (desatualizada):</label>
         <span style="font-size:14px; width: 280px; display: block; line-height: 18px; color: #6f6f6f;">
-          .zip da tradução não original. Compacte a pasta dalíngua desejada que está emlocalization/replace
+          .zip da tradução não original. Compacte a pasta da língua desejada que está na pasta 'localization/replace'
         </span>
         <input type="file" id="prevTranslationZip" @change="handlePrevTranslationUpload" accept=".zip"
           style="margin-top: 8px;" />
@@ -14,8 +14,8 @@
       <div>
         <label for="updatedOriginalZip">Tradução Original do jogo (atualizada):</label>
         <span style="font-size:14px; width: 280px; display: block; line-height: 18px; color: #6f6f6f;">
-          .zip da tradução original do jogo para comparação. Compacte a pasta da língua desejada que está em
-          localization
+          .zip da tradução original do jogo para comparação. Compacte a pasta da língua desejada que está na pasta
+          'localization'
         </span>
         <input type="file" id="updatedOriginalZip" @change="handleUpdatedOriginalUpload" accept=".zip"
           style="margin-top: 8px;" />
