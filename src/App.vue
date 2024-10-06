@@ -148,7 +148,7 @@ export default {
       zip.forEach((relativePath, zipEntry) => {
         if (!zipEntry.dir && zipEntry.name.endsWith('.yml')) {
           const promise = zipEntry.async('string').then((data) => {
-            const parsedData = parseTranslationFileStream(data);
+            const parsedData = parseTranslationFileStream(data, zipEntry.name);
             const normalizedFilename = normalizeFilename(zipEntry.name);
             contentObj.value[normalizedFilename] = {
               entries: parsedData.entries,
@@ -285,7 +285,7 @@ export default {
     };
 
 
-    const parseTranslationFileStream = (data) => {
+    const parseTranslationFileStream = (data, fileName) => {
       const lines = data.split(/\r?\n/);
       const result = { entries: {}, languageCode: '' };
       let insideRootKey = false;
@@ -318,7 +318,7 @@ export default {
         // Dividir a linha no primeiro dois pontos
         const colonIndex = line.indexOf(':');
         if (colonIndex === -1) {
-          console.warn(`Linha ${lineNumber}: Não foi encontrado ':' - ${line}`);
+          console.warn(`Arquivo ${fileName}: Não foi encontrado ':' para a linha ${line}`);
           continue;
         }
 
@@ -342,7 +342,7 @@ export default {
             // Ignorar qualquer coisa após a aspa de fechamento
           } else {
             // Erro: Não foi encontrada a aspa de fechamento na mesma linha
-            console.warn(`Linha ${lineNumber}: Não foi encontrada a aspa de fechamento para a chave '${keyPart}'`);
+            console.warn(`Arquivo ${fileName}: Não foi encontrada a aspa de fechamento para a chave '${keyPart}'`);
           }
         } else if (rest === '') {
           // Valor vazio
