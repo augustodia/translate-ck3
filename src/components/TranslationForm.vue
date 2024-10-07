@@ -12,7 +12,7 @@
         ]" :key="item.id">
           <div class="translation-item" :class="{ 'new-key': !item.isTranslated }">
             <label>{{ item.id }}</label>
-            <ProtectedTextarea :value="item.value" @update:value="(newValue) => updateValue(item.key, newValue)" />
+            <ProtectedTextarea :value="item.value" @update:value="(newValue) => updateValue(item.id, newValue)" />
             <button @click="toggleTranslated(item.id)">
               {{ item.isTranslated ? 'Desmarcar como Traduzido' : 'Marcar como Traduzido' }}
             </button>
@@ -42,7 +42,7 @@ export default defineComponent({
   emits: ['update-content'],
   setup(props, { emit }) {
     const updateValue = (key, newValue) => {
-      props.content[key].value = newValue;
+      props.content[key] = { value: newValue, isTranslated: true };
       emit('update-content', props.content);
     };
 
