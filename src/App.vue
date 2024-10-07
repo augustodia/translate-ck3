@@ -1,7 +1,8 @@
 <!-- src/App.vue -->
 <template>
   <div id="app">
-    <h1>Tradutor CK3</h1>
+    <h1>Tradutor CK3 <span class="version">Versão 1.0</span></h1>
+
     <div v-if="!filesLoaded" class="file-inputs">
       <div>
         <label for="prevTranslationZip">Tradução Anterior (desatualizada):</label>
@@ -441,6 +442,11 @@ export default {
 
 h1 {
   color: #2c3e50;
+}
+
+h1 .version {
+  font-size: 12px;
+  color: #7d7d7d;
 }
 
 .lds-dual-ring {
