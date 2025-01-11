@@ -44,17 +44,44 @@
             :title="!item.isTranslated ? 'Este texto ainda não foi traduzido' : 'Este texto já foi traduzido'">
             <div class="translation-item-header">
               <label :for="'translation-' + item.id">{{ item.id }}</label>
-              <button @click="toggleTranslated(item.id)" class="toggle-button"
-                :class="{ 'is-translated': item.isTranslated }"
-                :title="item.isTranslated ? 'Marcar como não traduzido' : 'Marcar como traduzido'">
-                <span class="button-icon">{{ item.isTranslated ? '✓' : '○' }}</span>
-                {{ item.isTranslated ? 'Traduzido' : 'Não Traduzido' }}
-              </button>
+              <div class="translation-actions">
+                <button @click="debouncedGetSuggestions(item.id, item.value)" class="suggestion-trigger-button"
+                  :disabled="loadingSuggestions.has(item.id) || isIndexing"
+                  :title="isIndexing ? 'Indexando traduções...' : 'Buscar sugestões de tradução'">
+                  <span class="button-icon">✨</span>
+                </button>
+                <button @click="toggleTranslated(item.id)" class="toggle-button"
+                  :class="{ 'is-translated': item.isTranslated }"
+                  :title="item.isTranslated ? 'Marcar como não traduzido' : 'Marcar como traduzido'">
+                  <span class="button-icon">{{ item.isTranslated ? '✓' : '○' }}</span>
+                  {{ item.isTranslated ? 'Traduzido' : 'Não Traduzido' }}
+                </button>
+              </div>
             </div>
 
             <ProtectedTextarea :id="'translation-' + item.id" :value="item.value"
               @update:value="(newValue) => updateValue(item.id, newValue)" :placeholder="'Digite a tradução aqui...'"
               class="translation-textarea" />
+
+            <div v-if="suggestions[item.id] || loadingSuggestions.has(item.id)" class="suggestions-container">
+              <div class="suggestions-header">
+                <span>Sugestões de tradução</span>
+                <div v-if="loadingSuggestions.has(item.id)" class="suggestions-loading">
+                  <div class="loading-dots"></div>
+                </div>
+              </div>
+              <div v-if="suggestions[item.id] && suggestions[item.id].length > 0"
+                v-for="suggestion in suggestions[item.id]" :key="suggestion.key" class="suggestion-item">
+                <div class="suggestion-text">{{ suggestion.value }}</div>
+                <button @click="applySuggestion(item.id, suggestion.value)" class="suggestion-button">
+                  <span class="button-icon">➔</span>
+                  Usar
+                </button>
+              </div>
+              <div v-else-if="suggestions[item.id] && suggestions[item.id].length === 0" class="no-suggestions">
+                Nenhuma sugestão encontrada
+              </div>
+            </div>
           </div>
         </DynamicScrollerItem>
       </template>
@@ -63,7 +90,7 @@
 </template>
 
 <script>
-import { defineComponent, ref, computed } from 'vue';
+import { defineComponent, ref, computed, watch, onMounted } from 'vue';
 import ProtectedTextarea from './ProtectedTextarea.vue';
 import SearchBar from './SearchBar.vue';
 import ProgressBar from './ProgressBar.vue';
@@ -71,6 +98,16 @@ import BackupManager from './BackupManager.vue';
 import HistoryManager from './HistoryManager.vue';
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import { validateYamlContent } from '../utils/validation';
+import { suggestionService } from '../utils/suggestionService';
+
+// Função de debounce
+const debounce = (fn, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+};
 
 export default defineComponent({
   name: 'TranslationForm',
@@ -86,13 +123,52 @@ export default defineComponent({
   props: {
     fileName: String,
     content: Object,
+    mergedContent: {
+      type: Object,
+      required: true
+    },
   },
   emits: ['update-content', 'export'],
   setup(props, { emit }) {
-    const filteredContent = ref(null)
-    const loading = ref(false)
-    const loadingMessage = ref('')
-    const error = ref(null)
+    const filteredContent = ref(null);
+    const loading = ref(false);
+    const loadingMessage = ref('');
+    const error = ref(null);
+    const suggestions = ref({});
+    const isIndexing = ref(false);
+    const loadingSuggestions = ref(new Set());
+
+    const debouncedGetSuggestions = debounce(async (key, value) => {
+      if (!value?.trim()) {
+        suggestions.value[key] = [];
+        return;
+      }
+
+      loadingSuggestions.value.add(key);
+      try {
+        suggestions.value[key] = await suggestionService.getSuggestions(key, value);
+      } finally {
+        loadingSuggestions.value.delete(key);
+      }
+    }, 300);
+
+    // Cria o índice quando o componente é montado
+    onMounted(async () => {
+      if (props.mergedContent) {
+        isIndexing.value = true;
+        await suggestionService.createIndex(props.mergedContent);
+        isIndexing.value = false;
+      }
+    });
+
+    // Atualiza o índice quando o conteúdo muda
+    watch(() => props.mergedContent, async (newContent) => {
+      if (newContent) {
+        isIndexing.value = true;
+        await suggestionService.createIndex(newContent);
+        isIndexing.value = false;
+      }
+    });
 
     const setLoading = (isLoading, message = 'Carregando traduções...') => {
       loading.value = isLoading
@@ -109,7 +185,6 @@ export default defineComponent({
 
     const validateContent = (content) => {
       try {
-        // Converte o conteúdo para formato YAML para validação
         const yamlContent = Object.entries(content).reduce((acc, [key, value]) => {
           acc[key] = value.value
           return acc
@@ -137,7 +212,7 @@ export default defineComponent({
       }
 
       history.unshift(entry)
-      if (history.length > 50) history.pop() // Mantém apenas as últimas 50 alterações
+      if (history.length > 50) history.pop()
 
       localStorage.setItem(historyKey, JSON.stringify(history))
     }
@@ -159,11 +234,16 @@ export default defineComponent({
     }
 
     const updateValue = async (key, newValue) => {
-      setLoading(true, 'Salvando tradução...')
       try {
+        // Se o valor não mudou, não faz nada
+        if (props.content[key].value === newValue) return;
+
         const updatedContent = {
           ...props.content,
-          [key]: { value: newValue, isTranslated: true }
+          [key]: {
+            value: newValue,
+            isTranslated: newValue.trim() !== '' // Só marca como traduzido se tiver conteúdo
+          }
         }
 
         if (validateContent(updatedContent)) {
@@ -172,9 +252,13 @@ export default defineComponent({
         }
       } catch (err) {
         handleError(err)
-      } finally {
-        setLoading(false)
       }
+    }
+
+    const applySuggestion = (key, suggestionValue) => {
+      updateValue(key, suggestionValue)
+      // Limpa as sugestões após aplicar
+      suggestions.value[key] = [];
     }
 
     const handleSearchResults = (results) => {
@@ -262,7 +346,12 @@ export default defineComponent({
       handleVersionRestore,
       loading,
       loadingMessage,
-      error
+      error,
+      suggestions,
+      applySuggestion,
+      isIndexing,
+      loadingSuggestions,
+      debouncedGetSuggestions,
     };
   },
 });
@@ -470,5 +559,127 @@ label {
 
 .export-button:hover {
   background-color: #147a4f;
+}
+
+.suggestions-container {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}
+
+.suggestions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #4a5568;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.suggestions-loading {
+  display: flex;
+  align-items: center;
+}
+
+.loading-dots {
+  width: 24px;
+  height: 6px;
+  background: linear-gradient(to right,
+      #4a5568 0%,
+      #4a5568 25%,
+      transparent 25%,
+      transparent 50%,
+      #4a5568 50%,
+      #4a5568 75%,
+      transparent 75%,
+      transparent 100%);
+  background-size: 16px 100%;
+  animation: loading-dots 1s infinite linear;
+}
+
+@keyframes loading-dots {
+  from {
+    background-position: 16px 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
+}
+
+.suggestion-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background-color: white;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.suggestion-text {
+  flex: 1;
+  margin-right: 12px;
+  font-size: 14px;
+  color: #2d3748;
+}
+
+.suggestion-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #16915e;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.suggestion-button:hover {
+  background-color: #147a4f;
+}
+
+.translation-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.suggestion-trigger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background-color: #edf2f7;
+  color: #4a5568;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.suggestion-trigger-button:hover:not(:disabled) {
+  background-color: #e2e8f0;
+  transform: scale(1.05);
+}
+
+.suggestion-trigger-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.no-suggestions {
+  text-align: center;
+  padding: 12px;
+  color: #718096;
+  font-size: 14px;
+  font-style: italic;
 }
 </style>

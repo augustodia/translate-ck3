@@ -32,7 +32,7 @@
       <div class="content-area">
         <div v-if="selectedFile">
           <TranslationForm :fileName="selectedFile" :content="mergedContent[selectedFile]"
-            @update-content="handleContentUpdate" @export="exportFiles" />
+            :mergedContent="mergedContent" @update-content="handleContentUpdate" @export="exportFiles" />
         </div>
         <div v-else>
           <p>Selecione um arquivo na barra lateral para começar a traduzir.</p>
