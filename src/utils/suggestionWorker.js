@@ -1,3 +1,5 @@
+import { translateText, TRANSLATION_SERVICES } from "./translationAPI";
+
 // Web Worker para processar sugestões
 const createSearchIndex = (content) => {
   const index = {};
@@ -51,9 +53,18 @@ const createSearchIndex = (content) => {
   return index;
 };
 
-const findSimilarTranslations = (searchText, index, maxResults = 3) => {
+const findSimilarTranslations = async (
+  searchText,
+  index,
+  maxResults = 3,
+  targetLanguage = "pt"
+) => {
   if (!searchText?.trim() || !index?.translations || !index?.words) return [];
 
+  // Primeiro, solicita a tradução automática
+  const autoTranslation = await translateText(searchText, targetLanguage);
+
+  // Busca sugestões baseadas em traduções existentes
   const searchWords = new Set(
     searchText
       .toLowerCase()
@@ -68,7 +79,7 @@ const findSimilarTranslations = (searchText, index, maxResults = 3) => {
       )
   );
 
-  if (searchWords.size === 0) return [];
+  if (searchWords.size === 0 && !autoTranslation) return [];
 
   const scores = new Map();
 
@@ -125,14 +136,29 @@ const findSimilarTranslations = (searchText, index, maxResults = 3) => {
   }
 
   // Filtra e ordena os resultados
-  return Array.from(scores.values())
-    .filter((item) => item.score > 1) // Remove sugestões com pontuação muito baixa
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxResults);
+  let suggestions = Array.from(scores.values())
+    .filter((item) => item.score > 1)
+    .sort((a, b) => b.score - a.score);
+
+  // Adiciona a tradução automática como primeira sugestão se disponível
+  if (autoTranslation) {
+    suggestions = [
+      {
+        key: "auto-translation",
+        value: autoTranslation.value,
+        fileName: "Auto-Tradução",
+        isAutoTranslated: true,
+        score: 999, // Garante que fique no topo
+      },
+      ...suggestions,
+    ];
+  }
+
+  return suggestions.slice(0, maxResults);
 };
 
 // Escuta mensagens do thread principal
-self.addEventListener("message", (e) => {
+self.addEventListener("message", async (e) => {
   const { type, data } = e.data;
 
   switch (type) {
@@ -145,10 +171,11 @@ self.addEventListener("message", (e) => {
       break;
 
     case "FIND_SUGGESTIONS":
-      const suggestions = findSimilarTranslations(
+      const suggestions = await findSimilarTranslations(
         data.searchText,
         data.index,
-        data.maxResults
+        data.maxResults,
+        data.targetLanguage
       );
       self.postMessage({
         type: "SUGGESTIONS_FOUND",

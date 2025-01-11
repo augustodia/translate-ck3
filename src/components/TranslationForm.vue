@@ -72,7 +72,12 @@
               </div>
               <div v-if="suggestions[item.id] && suggestions[item.id].length > 0"
                 v-for="suggestion in suggestions[item.id]" :key="suggestion.key" class="suggestion-item">
-                <div class="suggestion-text">{{ suggestion.value }}</div>
+                <div class="suggestion-content">
+                  <div class="suggestion-text">{{ suggestion.value }}</div>
+                  <div class="suggestion-source" :class="{ 'auto-translated': suggestion.isAutoTranslated }">
+                    {{ suggestion.isAutoTranslated ? '🤖 Tradução Automática' : '📚 Tradução Similar' }}
+                  </div>
+                </div>
                 <button @click="applySuggestion(item.id, suggestion.value)" class="suggestion-button">
                   <span class="button-icon">➔</span>
                   Usar
@@ -620,11 +625,29 @@ label {
   margin-bottom: 4px;
 }
 
-.suggestion-text {
+.suggestion-content {
   flex: 1;
   margin-right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.suggestion-text {
   font-size: 14px;
   color: #2d3748;
+}
+
+.suggestion-source {
+  font-size: 12px;
+  color: #718096;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.suggestion-source.auto-translated {
+  color: #805ad5;
 }
 
 .suggestion-button {
@@ -663,9 +686,7 @@ label {
   color: #4a5568;
   cursor: pointer;
   transition: all 0.2s ease;
-}
-
-.suggestion-trigger-button:hover:not(:disabled) {
+}.suggestion-trigger-button:hover:not(:disabled) {
   background-color: #e2e8f0;
   transform: scale(1.05);
 }
