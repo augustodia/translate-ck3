@@ -1,11 +1,17 @@
 <template>
   <div>
     <h2 style="margin-top: 0">{{ fileName }}</h2>
-    <button @click="markAllTranslated()" style="margin-bottom: 20px">
-      {{ 'Marcar tudo como Traduzido' }}
-    </button>
+    <div class="actions-container">
+      <SearchBar 
+        :content="content"
+        @search-results="handleSearchResults"
+      />
+      <button @click="markAllTranslated()" style="margin-bottom: 20px">
+        {{ 'Marcar tudo como Traduzido' }}
+      </button>
+    </div>
 
-    <DynamicScroller :items="getContentArray(content)" :min-item-size="100" class="translation-list">
+    <DynamicScroller :items="displayedContent" :min-item-size="100" class="translation-list">
       <template #default="{ item, index, active }">
         <DynamicScrollerItem :item="item" :active="active" :data-index="index" :data-active="active" :size-dependencies="[
           item.value,
@@ -24,8 +30,9 @@
 </template>
 
 <script>
-import { defineComponent } from 'vue';
+import { defineComponent, ref, computed } from 'vue';
 import ProtectedTextarea from './ProtectedTextarea.vue';
+import SearchBar from './SearchBar.vue';
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 
 export default defineComponent({
@@ -33,7 +40,8 @@ export default defineComponent({
   components: {
     ProtectedTextarea,
     DynamicScroller,
-    DynamicScrollerItem
+    DynamicScrollerItem,
+    SearchBar
   },
   props: {
     fileName: String,
@@ -41,24 +49,31 @@ export default defineComponent({
   },
   emits: ['update-content'],
   setup(props, { emit }) {
+    const filteredContent = ref(null)
+
     const updateValue = (key, newValue) => {
       props.content[key] = { value: newValue, isTranslated: true };
       emit('update-content', props.content);
     };
 
-    const getContentArray = (content) => {
-      return Object.keys(content)
+    const handleSearchResults = (results) => {
+      filteredContent.value = results
+    }
+
+    const displayedContent = computed(() => {
+      const contentToUse = filteredContent.value || props.content
+      return Object.keys(contentToUse)
         .sort((a, b) => {
-          if (!content[a].isTranslated && content[b].isTranslated) return -1;
-          if (content[a].isTranslated && !content[b].isTranslated) return 1;
+          if (!contentToUse[a].isTranslated && contentToUse[b].isTranslated) return -1;
+          if (contentToUse[a].isTranslated && !contentToUse[b].isTranslated) return 1;
           return 0;
         })
         .map((key) => ({
           id: key,
-          value: content[key].value,
-          isTranslated: content[key].isTranslated,
+          value: contentToUse[key].value,
+          isTranslated: contentToUse[key].isTranslated,
         }));
-    };
+    });
 
     const markAllTranslated = () => {
       const newContent = { ...props.content };
@@ -75,15 +90,20 @@ export default defineComponent({
 
     return {
       updateValue,
-      getContentArray,
+      displayedContent,
       toggleTranslated,
-      markAllTranslated
+      markAllTranslated,
+      handleSearchResults
     };
   },
 });
 </script>
 
 <style>
+.actions-container {
+  margin-bottom: 20px;
+}
+
 .translation-list {
   max-height: calc(100vh - 218px);
   overflow-y: auto;
@@ -104,11 +124,9 @@ label {
 
 .new-key {
   background-color: #ffe6e6;
-  /* Fundo vermelho claro */
 }
 
 .translated-key {
   opacity: 0.5;
-  /* Chaves traduzidas aparecem desbotadas */
 }
 </style>
