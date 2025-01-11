@@ -32,7 +32,7 @@
       <div class="content-area">
         <div v-if="selectedFile">
           <TranslationForm :fileName="selectedFile" :content="mergedContent[selectedFile]"
-            @update-content="updateContent" @export="exportFiles" />
+            @update-content="handleContentUpdate" @export="exportFiles" />
         </div>
         <div v-else>
           <p>Selecione um arquivo na barra lateral para começar a traduzir.</p>
@@ -45,7 +45,7 @@
 <!-- Resto do script permanece o mesmo -->
 
 <script>
-import { nextTick, ref, watch } from "vue";
+import { ref } from "vue";
 import JSZip from "jszip";
 import TreeNode from "./utils/TreeNode";
 import { saveAs } from "file-saver";
@@ -120,8 +120,8 @@ export default {
       if (file && file.name.endsWith(".zip")) {
         const zip = new JSZip();
         const content = await file.arrayBuffer();
-        const zipContent = await zip.loadAsync(content);
-        await buildFileTree(zipContent);
+        await zip.loadAsync(content);
+        buildFileTree();
         filesLoaded.value = true;
       } else {
         alert("Por favor, selecione um arquivo ZIP válido.");
@@ -282,72 +282,51 @@ export default {
     };
 
 
+    const parseLineValue = (rest, keyPart, fileName) => {
+      if (rest.startsWith('"')) {
+        const closingQuoteIndex = rest.indexOf('"', 1);
+        if (closingQuoteIndex !== -1) {
+          return rest.substring(1, closingQuoteIndex);
+        }
+        console.warn(`Arquivo ${fileName}: Não foi encontrada a aspa de fechamento para a chave '${keyPart}'`);
+        return '';
+      }
+      return rest === '' ? '' : rest;
+    };
+
     const parseTranslationFileStream = (data, fileName) => {
       const lines = data.split(/\r?\n/);
       const result = { entries: {}, languageCode: '' };
       let insideRootKey = false;
 
-      for (let line of lines) {
-        line = line.trim();
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine || trimmedLine.startsWith('#')) continue;
 
-        // Ignorar linhas vazias
-        if (!line) {
-          continue;
-        }
-
-        // Ignorar linhas que começam com '#' (comentários)
-        if (line.startsWith('#')) {
-          continue;
-        }
-
-        // Verificar se é a chave raiz (ex: l_english:)
-        const rootKeyMatch = line.match(/^l_(\w+):$/);
+        const rootKeyMatch = trimmedLine.match(/^l_(\w+):$/);
         if (rootKeyMatch) {
           result.languageCode = rootKeyMatch[1];
           insideRootKey = true;
           continue;
         }
 
-        if (!insideRootKey) {
-          continue
-        }
+        if (!insideRootKey) continue;
 
-        // Dividir a linha no primeiro dois pontos
-        const colonIndex = line.indexOf(':');
+        const colonIndex = trimmedLine.indexOf(':');
         if (colonIndex === -1) {
-          console.warn(`Arquivo ${fileName}: Não foi encontrado ':' para a linha ${line}`);
+          console.warn(`Arquivo ${fileName}: Não foi encontrado ':' para a linha ${trimmedLine}`);
           continue;
         }
 
-        const keyPart = line.substring(0, colonIndex).trim();
-        let rest = line.substring(colonIndex + 1).trim();
+        const keyPart = trimmedLine.substring(0, colonIndex).trim();
+        let rest = trimmedLine.substring(colonIndex + 1).trim();
 
-        // Extrair número opcional após os dois pontos
         const numberMatch = rest.match(/^(\d+)\s*/);
         if (numberMatch) {
           rest = rest.substring(numberMatch[0].length).trim();
         }
 
-        // Verificar se o restante começa com aspas
-        if (rest.startsWith('"')) {
-          // Verificar se há uma aspa de fechamento na mesma linha
-          const closingQuoteIndex = rest.indexOf('"', 1); // Iniciar a busca a partir do índice 1
-          if (closingQuoteIndex !== -1) {
-            // Capturar o valor até a aspa de fechamento
-            const value = rest.substring(1, closingQuoteIndex);
-            result.entries[keyPart] = value;
-            // Ignorar qualquer coisa após a aspa de fechamento
-          } else {
-            // Erro: Não foi encontrada a aspa de fechamento na mesma linha
-            console.warn(`Arquivo ${fileName}: Não foi encontrada a aspa de fechamento para a chave '${keyPart}'`);
-          }
-        } else if (rest === '') {
-          // Valor vazio
-          result.entries[keyPart] = '';
-        } else {
-          // Valor sem aspas
-          result.entries[keyPart] = rest;
-        }
+        result.entries[keyPart] = parseLineValue(rest, keyPart, fileName);
       }
 
       return result;
@@ -405,10 +384,16 @@ export default {
       selectedFile.value = filePath;
     };
 
-    const updateContent = (newContent) => {
-      mergedContent.value[selectedFile.value] = newContent;
-      buildFileTree()
-    };
+    const handleContentUpdate = (newContent) => {
+      console.log('Atualizando conteúdo no App:', newContent);
+      if (selectedFile.value && newContent) {
+        mergedContent.value = {
+          ...mergedContent.value,
+          [selectedFile.value]: newContent
+        };
+        buildFileTree();
+      }
+    }
 
 
 
@@ -421,7 +406,7 @@ export default {
       selectFile,
       selectedFile,
       mergedContent,
-      updateContent,
+      handleContentUpdate,
       handleUpdatedOriginalUpload,
       handlePrevTranslationUpload,
       loading

@@ -1,19 +1,14 @@
 <template>
   <div class="progress-container">
-    <div class="progress-info">
+    <div class="progress-header">
       <span class="progress-label">Progresso da Tradução</span>
       <span class="progress-percentage">{{ percentage }}%</span>
     </div>
-    <div class="progress-bar-container">
-      <div class="progress-bar" :style="{ width: `${percentage}%` }" :class="{
-        'progress-low': percentage < 30,
-        'progress-medium': percentage >= 30 && percentage < 70,
-        'progress-high': percentage >= 70
-      }">
-      </div>
+    <div class="progress-bar">
+      <div class="progress-fill" :style="{ width: `${percentage}%` }" :class="getProgressClass"></div>
     </div>
     <div class="progress-details">
-      <span>{{ translatedCount }} de {{ totalCount }} textos traduzidos</span>
+      {{ translatedCount }} de {{ totalCount }} textos traduzidos
     </div>
   </div>
 </template>
@@ -34,14 +29,25 @@ export default {
     const translatedCount = computed(() =>
       Object.values(props.content).filter(item => item.isTranslated).length
     )
-    const percentage = computed(() =>
-      Math.round((translatedCount.value / totalCount.value) * 100) || 0
-    )
+    const percentage = computed(() => {
+      if (totalCount.value === 0) return 0;
+      // Calcula com 2 casas decimais e arredonda para baixo
+      const calc = Math.floor((translatedCount.value / totalCount.value) * 10000) / 100;
+      // Só retorna 100% se realmente todos estiverem traduzidos
+      return translatedCount.value === totalCount.value ? 100 : calc;
+    });
+
+    const getProgressClass = computed(() => {
+      if (percentage.value < 30) return 'progress-low';
+      if (percentage.value < 70) return 'progress-medium';
+      return 'progress-high';
+    });
 
     return {
       totalCount,
       translatedCount,
-      percentage
+      percentage,
+      getProgressClass
     }
   }
 }
@@ -56,7 +62,7 @@ export default {
   margin-bottom: 15px;
 }
 
-.progress-info {
+.progress-header {
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
@@ -72,7 +78,7 @@ export default {
   color: #16915e;
 }
 
-.progress-bar-container {
+.progress-bar {
   width: 100%;
   height: 8px;
   background: #eee;
@@ -80,20 +86,20 @@ export default {
   overflow: hidden;
 }
 
-.progress-bar {
+.progress-fill {
   height: 100%;
   transition: width 0.3s ease;
 }
 
-.progress-low {
+.progress-fill.progress-low {
   background: #ff6b6b;
 }
 
-.progress-medium {
+.progress-fill.progress-medium {
   background: #ffd93d;
 }
 
-.progress-high {
+.progress-fill.progress-high {
   background: #16915e;
 }
 

@@ -42,7 +42,7 @@
           <div class="translation-item" :class="{ 'new-key': !item.isTranslated }"
             :title="!item.isTranslated ? 'Este texto ainda não foi traduzido' : 'Este texto já foi traduzido'">
             <div class="translation-item-header">
-              <label>{{ item.id }}</label>
+              <label :for="'translation-' + item.id">{{ item.id }}</label>
               <button @click="toggleTranslated(item.id)" class="toggle-button"
                 :class="{ 'is-translated': item.isTranslated }"
                 :title="item.isTranslated ? 'Marcar como não traduzido' : 'Marcar como traduzido'">
@@ -51,8 +51,9 @@
               </button>
             </div>
 
-            <ProtectedTextarea :value="item.value" @update:value="(newValue) => updateValue(item.id, newValue)"
-              :placeholder="'Digite a tradução aqui...'" class="translation-textarea" />
+            <ProtectedTextarea :id="'translation-' + item.id" :value="item.value"
+              @update:value="(newValue) => updateValue(item.id, newValue)" :placeholder="'Digite a tradução aqui...'"
+              class="translation-textarea" />
           </div>
         </DynamicScrollerItem>
       </template>

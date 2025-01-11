@@ -1,5 +1,3 @@
-import jsYaml from "js-yaml";
-
 export class ValidationError extends Error {
   constructor(message, type) {
     super(message);
@@ -107,22 +105,24 @@ export const createBackup = async (content, fileName) => {
   }
 };
 
-export const restoreBackup = async (backupKey) => {
+export const restoreBackup = async (key) => {
   try {
-    const backupData = localStorage.getItem(backupKey);
+    const backupData = localStorage.getItem(key);
     if (!backupData) {
-      throw new ValidationError("Backup não encontrado.", "BACKUP_NOT_FOUND");
+      throw new Error("Backup não encontrado");
     }
 
-    return JSON.parse(backupData);
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      throw error;
+    const parsedData = JSON.parse(backupData);
+    console.log("Dados do backup recuperados:", parsedData);
+
+    if (!parsedData?.content) {
+      throw new Error("Dados do backup inválidos");
     }
-    throw new ValidationError(
-      "Erro ao restaurar backup.",
-      "BACKUP_RESTORE_ERROR"
-    );
+
+    return parsedData.content;
+  } catch (error) {
+    console.error("Erro ao restaurar backup:", error);
+    throw error;
   }
 };
 

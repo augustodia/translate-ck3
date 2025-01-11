@@ -1,42 +1,42 @@
 <template>
-  <div class="backup-manager">
-    <button @click="toggleBackupList" class="backup-button" title="Gerenciar backups das traduções">
-      <span class="backup-icon">📁</span>
-      Backups
-      <span v-if="loading" class="loading-dot"></span>
-    </button>
+  <button @click="toggleBackupList" class="action-button backup-button" title="Gerenciar backups">
+    <span class="button-icon">📁</span>
+    Backups
+  </button>
 
-    <div v-if="showBackups" class="backup-list">
-      <div class="backup-header">
+  <template v-if="showBackups">
+    <div class="modal-overlay" @click="toggleBackupList"></div>
+    <div class="backup-modal">
+      <div class="modal-header">
         <h3>Backups Disponíveis</h3>
-        <button @click="toggleBackupList" class="close-button">×</button>
+        <button @click="toggleBackupList" class="close-button" title="Fechar">×</button>
       </div>
 
-      <div v-if="loading" class="backup-loading">
-        Carregando backups...
-      </div>
-
-      <div v-else-if="backups.length === 0" class="no-backups">
-        Nenhum backup encontrado para este arquivo.
-      </div>
-
-      <div v-else class="backup-items">
-        <div v-for="backup in backups" :key="backup.key" class="backup-item">
-          <div class="backup-info">
-            <span class="backup-date">
-              {{ formatDate(backup.timestamp) }}
-            </span>
-          </div>
-          <div class="backup-actions">
-            <button @click="restoreBackupVersion(backup.key)" class="restore-button" title="Restaurar esta versão"
-              :disabled="loading">
-              Restaurar
+      <div class="modal-content">
+        <div v-if="loading" class="loading-state">
+          Carregando backups...
+        </div>
+        <div v-else-if="backups && backups.length > 0" class="backup-list">
+          <div v-for="backup in backups" :key="backup.timestamp" class="backup-item">
+            <div class="backup-info">
+              <span class="backup-date">{{ formatDate(backup.timestamp) }}</span>
+              <span class="backup-meta">
+                {{ backup.fileName }}
+              </span>
+            </div>
+            <button @click="restoreBackupVersion(backup)" class="restore-button" :disabled="loading">
+              {{ loading ? 'Restaurando...' : 'Restaurar' }}
             </button>
           </div>
         </div>
+        <div v-else class="no-backups">
+          Nenhum backup disponível ainda.
+          <br>
+          Os backups são criados automaticamente a cada alteração.
+        </div>
       </div>
     </div>
-  </div>
+  </template>
 </template>
 
 <script>
@@ -55,7 +55,7 @@ export default {
       required: true
     }
   },
-  emits: ['restore-backup'],
+  emits: ['restore-backup', 'update:content'],
   setup(props, { emit }) {
     const showBackups = ref(false)
     const backups = ref([])
@@ -81,12 +81,16 @@ export default {
 
     const loadBackups = async () => {
       try {
-        loading.value = true
-        backups.value = await listBackups(props.fileName)
+        loading.value = true;
+        const backupList = await listBackups(props.fileName);
+        backups.value = backupList.sort((a, b) =>
+          new Date(b.timestamp) - new Date(a.timestamp)
+        );
       } catch (error) {
-        console.error('Erro ao carregar backups:', error)
+        console.error('Erro ao carregar backups:', error);
+        backups.value = [];
       } finally {
-        loading.value = false
+        loading.value = false;
       }
     }
 
@@ -97,48 +101,73 @@ export default {
       }
     }
 
-    const restoreBackupVersion = async (backupKey) => {
+    const restoreBackupVersion = async (backup) => {
       try {
-        loading.value = true
-        isRestoring.value = true
-        const restoredData = await restoreBackup(backupKey)
-        emit('restore-backup', restoredData.content)
-        showBackups.value = false
-        await loadBackups()
+        loading.value = true;
+        isRestoring.value = true;
+
+        const key = backup.key;
+        console.log('Tentando restaurar backup com chave:', key);
+
+        const backupData = await restoreBackup(key);
+        console.log('Dados restaurados:', backupData);
+
+        if (!backupData) {
+          throw new Error('Backup não encontrado ou inválido');
+        }
+
+        // Emite o evento com os dados restaurados
+        emit('update:content', backupData);
+        emit('restore-backup', backupData);
+        showBackups.value = false;
+
+        // Mantém isRestoring como true por um curto período após a restauração
+        setTimeout(() => {
+          isRestoring.value = false;
+        }, 1000);
+
       } catch (error) {
-        alert(`Erro ao restaurar backup: ${error.message}`)
+        console.error('Erro ao restaurar backup:', error);
+        alert(`Erro ao restaurar backup: ${error.message}`);
+        isRestoring.value = false;
       } finally {
-        loading.value = false
-        isRestoring.value = false
+        loading.value = false;
       }
     }
 
-    // Criar backup automático quando o conteúdo mudar
-    watch(() => props.content, async (newContent) => {
-      if (isRestoring.value) return
+    // Watch para criar backups
+    watch(() => props.content, async () => {
+      // Não cria backup se estiver restaurando ou se não houver conteúdo
+      if (isRestoring.value || !props.content) return;
 
       try {
-        loading.value = true
-        await createBackup(newContent, props.fileName)
-        await loadBackups()
+        await createBackup(props.content, props.fileName);
       } catch (error) {
-        console.error('Erro ao criar backup automático:', error)
-      } finally {
-        loading.value = false
+        console.error('Erro ao criar backup automático:', error);
       }
-    }, { deep: true })
+    }, { deep: true });
 
+    // Criação do backup inicial
     onMounted(async () => {
-      try {
-        loading.value = true
-        await createBackup(props.content, props.fileName)
-        await loadBackups()
-      } catch (error) {
-        console.error('Erro ao criar backup inicial:', error)
-      } finally {
-        loading.value = false
+      if (props.content) {
+        try {
+          await createBackup(props.content, props.fileName);
+        } catch (error) {
+          console.error('Erro ao criar backup inicial:', error);
+        }
       }
-    })
+      await loadBackups();
+    });
+
+    const getTranslatedCount = (content) => {
+      if (!content) return 0;
+      return Object.values(content).filter(item => item.isTranslated).length;
+    }
+
+    const getTotalCount = (content) => {
+      if (!content) return 0;
+      return Object.keys(content).length;
+    }
 
     return {
       showBackups,
@@ -146,7 +175,9 @@ export default {
       loading,
       toggleBackupList,
       restoreBackupVersion,
-      formatDate
+      formatDate,
+      getTranslatedCount,
+      getTotalCount
     }
   }
 }
@@ -189,114 +220,134 @@ export default {
   animation: pulse 1s infinite;
 }
 
-.backup-list {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  width: 320px;
+.backup-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   background: white;
   border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e0e0e0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 400px;
+  max-width: 90vw;
+  padding: 0;
+  overflow: hidden;
   z-index: 1000;
 }
 
-.backup-header {
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #e0e0e0;
-  background-color: #f8f9fa;
-  border-radius: 8px 8px 0 0;
+  padding: 16px 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
 }
 
-.backup-header h3 {
+.modal-header h3 {
   margin: 0;
   font-size: 16px;
-  color: #2c3e50;
+  color: #2d3748;
   font-weight: 600;
 }
 
 .close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   background: none;
   border: none;
   font-size: 20px;
   color: #718096;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  padding: 0;
   line-height: 1;
+  border-radius: 4px;
   transition: all 0.2s ease;
+  margin-top: 0px;
 }
 
 .close-button:hover {
   background-color: #e2e8f0;
-  color: #2d3748;
+  color: #4a5568;
 }
 
-.backup-loading,
-.no-backups {
-  padding: 24px 16px;
-  text-align: center;
-  color: #718096;
-  font-size: 14px;
+.modal-content {
+  padding: 20px;
 }
 
-.backup-items {
-  max-height: 320px;
-  overflow-y: auto;
+.backup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .backup-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e0e0e0;
-  transition: background-color 0.2s ease;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
 .backup-item:hover {
-  background-color: #f8f9fa;
+  border-color: #cbd5e0;
+  background: #fff;
 }
 
 .backup-info {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .backup-date {
   font-size: 14px;
-  color: #4a5568;
+  font-weight: 500;
+  color: #2d3748;
 }
 
-.backup-actions {
-  display: flex;
-  gap: 8px;
+.backup-meta {
+  font-size: 12px;
+  color: #718096;
 }
 
 .restore-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
   background-color: #16915e;
   color: white;
   border: none;
   border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
+  padding: 6px 12px;
+  font-size: 13px;
   font-weight: 500;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.restore-button:hover:not(:disabled) {
+.restore-button:hover {
   background-color: #147a4f;
 }
 
-.restore-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.no-backups {
+  text-align: center;
+  padding: 32px 20px;
+  color: #718096;
+  font-size: 14px;
 }
 
 @keyframes pulse {
@@ -313,6 +364,33 @@ export default {
   100% {
     opacity: 0.5;
     transform: scale(0.8);
+  }
+}
+
+.loading-state {
+  text-align: center;
+  padding: 32px 20px;
+  color: #718096;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.loading-state::after {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #16915e;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>
