@@ -31,7 +31,7 @@
       <Sidebar :rootNode="rootNode" @select-file="selectFile" />
       <div class="content-area">
         <div v-if="selectedFile">
-          <TranslationForm :fileName="selectedFile" :content="mergedContent[selectedFile]"
+          <TranslationForm v-model:fileName="selectedFile" :content="mergedContent[selectedFile]"
             :mergedContent="mergedContent" @update-content="handleContentUpdate" @export="exportFiles" />
         </div>
         <div v-else>

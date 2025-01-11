@@ -13,12 +13,12 @@
       </div>
 
       <div class="toolbar-section actions-section">
+        <RecentFiles @load-file="handleLoadFile" />
         <button @click="$emit('export')" class="action-button export-button" title="Exportar arquivos traduzidos">
           <span class="button-icon">📥</span>
           Exportar Arquivos
         </button>
-        <BackupManager :fileName="fileName" :content="content" @restore-backup="handleBackupRestore" />
-        <HistoryManager :fileName="fileName" :content="content" @restore-version="handleVersionRestore" />
+        <VersionManager :fileName="fileName" :content="content" @restore-version="handleVersionRestore" />
         <button @click="markAllTranslated()" class="action-button mark-all-button"
           title="Marca todos os textos desta página como traduzidos">
           <span class="button-icon">✓</span>
@@ -99,11 +99,12 @@ import { defineComponent, ref, computed, watch, onMounted } from 'vue';
 import ProtectedTextarea from './ProtectedTextarea.vue';
 import SearchBar from './SearchBar.vue';
 import ProgressBar from './ProgressBar.vue';
-import BackupManager from './BackupManager.vue';
-import HistoryManager from './HistoryManager.vue';
+import VersionManager from './VersionManager.vue';
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import { validateYamlContent } from '../utils/validation';
 import { suggestionService } from '../utils/suggestionService';
+import RecentFiles from './RecentFiles.vue';
+import { useRecentFilesStore } from '../stores/recentFiles';
 
 // Função de debounce
 const debounce = (fn, delay) => {
@@ -122,8 +123,8 @@ export default defineComponent({
     DynamicScrollerItem,
     SearchBar,
     ProgressBar,
-    BackupManager,
-    HistoryManager
+    VersionManager,
+    RecentFiles
   },
   props: {
     fileName: String,
@@ -133,7 +134,7 @@ export default defineComponent({
       required: true
     },
   },
-  emits: ['update-content', 'export'],
+  emits: ['update-content', 'export', 'update:fileName'],
   setup(props, { emit }) {
     const filteredContent = ref(null);
     const loading = ref(false);
@@ -252,7 +253,6 @@ export default defineComponent({
         }
 
         if (validateContent(updatedContent)) {
-          await addToHistory(key, 'translation')
           emit('update-content', updatedContent)
         }
       } catch (err) {
@@ -331,7 +331,6 @@ export default defineComponent({
         updatedContent[key].isTranslated = newStatus
 
         if (validateContent(updatedContent)) {
-          addToHistory(key, 'status', { isTranslated: newStatus })
           emit('update-content', updatedContent)
         }
       } catch (err) {
@@ -340,6 +339,28 @@ export default defineComponent({
         setLoading(false)
       }
     };
+
+    const handleLoadFile = (file) => {
+      setLoading(true, 'Carregando arquivo...')
+      try {
+        if (validateContent(file.content)) {
+          emit('update-content', file.content)
+          emit('update:fileName', file.fileName)
+        }
+      } catch (err) {
+        handleError(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    // Adiciona o arquivo atual aos recentes quando o conteúdo muda
+    watch(() => props.content, (newContent) => {
+      if (newContent && props.fileName) {
+        const recentFilesStore = useRecentFilesStore()
+        recentFilesStore.addFile(props.fileName, newContent)
+      }
+    }, { deep: true })
 
     return {
       updateValue,
@@ -357,6 +378,7 @@ export default defineComponent({
       isIndexing,
       loadingSuggestions,
       debouncedGetSuggestions,
+      handleLoadFile,
     };
   },
 });
@@ -371,6 +393,26 @@ export default defineComponent({
 
 .translation-header {
   margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #fff;
+  padding: 20px 0;
+}
+
+.header-main {
+  flex: 1;
+}
+
+.side-panel {
+  width: 280px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 20px;
+  height: fit-content;
 }
 
 .header-main h2 {
@@ -686,7 +728,9 @@ label {
   color: #4a5568;
   cursor: pointer;
   transition: all 0.2s ease;
-}.suggestion-trigger-button:hover:not(:disabled) {
+}
+
+.suggestion-trigger-button:hover:not(:disabled) {
   background-color: #e2e8f0;
   transform: scale(1.05);
 }
@@ -702,5 +746,17 @@ label {
   color: #718096;
   font-size: 14px;
   font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .translation-header {
+    flex-direction: column;
+    position: static;
+  }
+
+  .side-panel {
+    width: 100%;
+    position: static;
+  }
 }
 </style>
