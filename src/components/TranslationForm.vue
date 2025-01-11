@@ -18,6 +18,7 @@
           Exportar Arquivos
         </button>
         <BackupManager :fileName="fileName" :content="content" @restore-backup="handleBackupRestore" />
+        <HistoryManager :fileName="fileName" :content="content" @restore-version="handleVersionRestore" />
         <button @click="markAllTranslated()" class="action-button mark-all-button"
           title="Marca todos os textos desta página como traduzidos">
           <span class="button-icon">✓</span>
@@ -67,6 +68,7 @@ import ProtectedTextarea from './ProtectedTextarea.vue';
 import SearchBar from './SearchBar.vue';
 import ProgressBar from './ProgressBar.vue';
 import BackupManager from './BackupManager.vue';
+import HistoryManager from './HistoryManager.vue';
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import { validateYamlContent } from '../utils/validation';
 
@@ -78,7 +80,8 @@ export default defineComponent({
     DynamicScrollerItem,
     SearchBar,
     ProgressBar,
-    BackupManager
+    BackupManager,
+    HistoryManager
   },
   props: {
     fileName: String,
@@ -120,6 +123,41 @@ export default defineComponent({
       }
     }
 
+    const addToHistory = async (key, type, data = {}) => {
+      const historyKey = `translation_history_${props.fileName}`
+      const savedHistory = localStorage.getItem(historyKey)
+      const history = savedHistory ? JSON.parse(savedHistory) : []
+
+      const entry = {
+        timestamp: new Date().toISOString(),
+        key,
+        type,
+        content: props.content[key],
+        ...data
+      }
+
+      history.unshift(entry)
+      if (history.length > 50) history.pop() // Mantém apenas as últimas 50 alterações
+
+      localStorage.setItem(historyKey, JSON.stringify(history))
+    }
+
+    const handleVersionRestore = (entry) => {
+      setLoading(true, 'Restaurando versão...')
+      try {
+        const updatedContent = { ...props.content }
+        updatedContent[entry.key] = entry.content
+
+        if (validateContent(updatedContent)) {
+          emit('update-content', updatedContent)
+        }
+      } catch (err) {
+        handleError(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     const updateValue = async (key, newValue) => {
       setLoading(true, 'Salvando tradução...')
       try {
@@ -129,6 +167,7 @@ export default defineComponent({
         }
 
         if (validateContent(updatedContent)) {
+          await addToHistory(key, 'translation')
           emit('update-content', updatedContent)
         }
       } catch (err) {
@@ -199,9 +238,11 @@ export default defineComponent({
       setLoading(true, 'Atualizando status...')
       try {
         const updatedContent = { ...props.content }
-        updatedContent[key].isTranslated = !updatedContent[key].isTranslated
+        const newStatus = !updatedContent[key].isTranslated
+        updatedContent[key].isTranslated = newStatus
 
         if (validateContent(updatedContent)) {
+          addToHistory(key, 'status', { isTranslated: newStatus })
           emit('update-content', updatedContent)
         }
       } catch (err) {
@@ -218,6 +259,7 @@ export default defineComponent({
       markAllTranslated,
       handleSearchResults,
       handleBackupRestore,
+      handleVersionRestore,
       loading,
       loadingMessage,
       error
