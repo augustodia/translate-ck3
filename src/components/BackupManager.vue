@@ -163,16 +163,18 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background-color: #f0f0f0;
+  background-color: #edf2f7;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
-  transition: background-color 0.2s ease;
+  font-size: 14px;
+  color: #4a5568;
+  transition: all 0.2s ease;
 }
 
 .backup-button:hover {
-  background-color: #e0e0e0;
+  background-color: #e2e8f0;
 }
 
 .backup-icon {
@@ -180,8 +182,8 @@ export default {
 }
 
 .loading-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   background-color: #16915e;
   border-radius: 50%;
   animation: pulse 1s infinite;
@@ -189,13 +191,13 @@ export default {
 
 .backup-list {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 8px);
   right: 0;
-  width: 300px;
+  width: 320px;
   background: white;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  margin-top: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
   z-index: 1000;
 }
 
@@ -203,38 +205,46 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #eee;
+  padding: 16px;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #f8f9fa;
+  border-radius: 8px 8px 0 0;
 }
 
 .backup-header h3 {
   margin: 0;
   font-size: 16px;
-  color: #333;
+  color: #2c3e50;
+  font-weight: 600;
 }
 
 .close-button {
   background: none;
   border: none;
   font-size: 20px;
-  color: #666;
+  color: #718096;
   cursor: pointer;
-  padding: 0 4px;
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: all 0.2s ease;
 }
 
 .close-button:hover {
-  color: #333;
+  background-color: #e2e8f0;
+  color: #2d3748;
 }
 
 .backup-loading,
 .no-backups {
-  padding: 16px;
+  padding: 24px 16px;
   text-align: center;
-  color: #666;
+  color: #718096;
+  font-size: 14px;
 }
 
 .backup-items {
-  max-height: 300px;
+  max-height: 320px;
   overflow-y: auto;
 }
 
@@ -243,7 +253,12 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid #e0e0e0;
+  transition: background-color 0.2s ease;
+}
+
+.backup-item:hover {
+  background-color: #f8f9fa;
 }
 
 .backup-info {
@@ -252,7 +267,7 @@ export default {
 
 .backup-date {
   font-size: 14px;
-  color: #333;
+  color: #4a5568;
 }
 
 .backup-actions {
@@ -261,14 +276,18 @@ export default {
 }
 
 .restore-button {
-  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
   background-color: #16915e;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
-  transition: background-color 0.2s ease;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
 .restore-button:hover:not(:disabled) {

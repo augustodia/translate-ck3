@@ -1,18 +1,27 @@
 <template>
-  <div>
-    <h2 style="margin-top: 0">{{ fileName }}</h2>
+  <div class="translation-container">
+    <header class="translation-header">
+      <div class="header-main">
+        <h2>{{ fileName }}</h2>
+        <ProgressBar :content="content" />
+      </div>
+    </header>
 
-    <ProgressBar :content="content" />
-
-    <div class="actions-container">
-      <div class="left-actions">
+    <div class="toolbar">
+      <div class="toolbar-section search-section">
         <SearchBar :content="content" @search-results="handleSearchResults" />
       </div>
-      <div class="right-actions">
+
+      <div class="toolbar-section actions-section">
+        <button @click="$emit('export')" class="action-button export-button" title="Exportar arquivos traduzidos">
+          <span class="button-icon">📥</span>
+          Exportar Arquivos
+        </button>
         <BackupManager :fileName="fileName" :content="content" @restore-backup="handleBackupRestore" />
-        <button @click="markAllTranslated()" class="action-button"
+        <button @click="markAllTranslated()" class="action-button mark-all-button"
           title="Marca todos os textos desta página como traduzidos">
-          {{ 'Marcar tudo como Traduzido' }}
+          <span class="button-icon">✓</span>
+          Marcar tudo
         </button>
       </div>
     </div>
@@ -32,13 +41,18 @@
           :size-dependencies="[item.value]" :key="item.id">
           <div class="translation-item" :class="{ 'new-key': !item.isTranslated }"
             :title="!item.isTranslated ? 'Este texto ainda não foi traduzido' : 'Este texto já foi traduzido'">
-            <label>{{ item.id }}</label>
+            <div class="translation-item-header">
+              <label>{{ item.id }}</label>
+              <button @click="toggleTranslated(item.id)" class="toggle-button"
+                :class="{ 'is-translated': item.isTranslated }"
+                :title="item.isTranslated ? 'Marcar como não traduzido' : 'Marcar como traduzido'">
+                <span class="button-icon">{{ item.isTranslated ? '✓' : '○' }}</span>
+                {{ item.isTranslated ? 'Traduzido' : 'Não Traduzido' }}
+              </button>
+            </div>
+
             <ProtectedTextarea :value="item.value" @update:value="(newValue) => updateValue(item.id, newValue)"
-              :placeholder="'Digite a tradução aqui...'" />
-            <button @click="toggleTranslated(item.id)" class="toggle-button"
-              :title="item.isTranslated ? 'Marcar como não traduzido' : 'Marcar como traduzido'">
-              {{ item.isTranslated ? 'Desmarcar como Traduzido' : 'Marcar como Traduzido' }}
-            </button>
+              :placeholder="'Digite a tradução aqui...'" class="translation-textarea" />
           </div>
         </DynamicScrollerItem>
       </template>
@@ -69,7 +83,7 @@ export default defineComponent({
     fileName: String,
     content: Object,
   },
-  emits: ['update-content'],
+  emits: ['update-content', 'export'],
   setup(props, { emit }) {
     const filteredContent = ref(null)
     const loading = ref(false)
@@ -212,62 +226,99 @@ export default defineComponent({
 </script>
 
 <style>
-.actions-container {
-  margin-bottom: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 20px;
+.translation-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.left-actions {
+.translation-header {
+  margin-bottom: 24px;
+}
+
+.header-main h2 {
+  margin: 0 0 16px 0;
+  color: #2c3e50;
+  font-size: 24px;
+}
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+  align-items: baseline;
+}
+
+.toolbar-section {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.search-section {
   flex: 1;
 }
 
-.right-actions {
+.actions-section {
   display: flex;
-  gap: 10px;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .translation-list {
-  max-height: calc(100vh - 218px);
+  max-height: calc(100vh - 280px);
   overflow-y: auto;
-  border: 1px solid #7d7d7d;
-  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: white;
 }
 
 .translation-item {
-  padding: 15px;
-  border-bottom: 1px solid #ccc;
-  margin-bottom: 10px;
-  transition: background-color 0.2s ease;
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+  transition: all 0.2s ease;
 }
 
 .translation-item:hover {
-  background-color: #f8f8f8;
+  background-color: #f8f9fa;
+}
+
+.translation-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.translation-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
 }
 
 label {
-  font-weight: bold;
-  display: block;
-  margin-bottom: 8px;
-  color: #333;
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 14px;
 }
 
 .new-key {
-  background-color: #ffe6e6;
-}
-
-.translated-key {
-  opacity: 0.5;
+  background-color: #fff5f5;
 }
 
 .loading-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  gap: 10px;
+  padding: 40px;
+  gap: 12px;
   color: #666;
 }
 
@@ -281,40 +332,68 @@ label {
 }
 
 .error-message {
-  background-color: #ffe6e6;
-  color: #d63031;
-  padding: 12px;
-  border-radius: 4px;
-  margin-bottom: 15px;
-  border: 1px solid #fab1a0;
+  background-color: #fff5f5;
+  color: #e53e3e;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid #fed7d7;
 }
 
 .action-button,
 .toggle-button {
-  padding: 8px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
-  transition: background-color 0.2s ease;
+  font-size: 14px;
+  transition: all 0.2s ease;
 }
 
 .action-button {
   background-color: #16915e;
   color: white;
+  height: 36px;
+  padding: 0 16px;
 }
 
 .action-button:hover {
   background-color: #147a4f;
 }
 
+.mark-all-button {
+  background-color: #2c5282;
+  color: white;
+}
+
+.mark-all-button:hover {
+  background-color: #2a4365;
+}
+
 .toggle-button {
-  background-color: #f0f0f0;
-  color: #333;
+  background-color: #edf2f7;
+  color: #4a5568;
 }
 
 .toggle-button:hover {
-  background-color: #e0e0e0;
+  background-color: #e2e8f0;
+}
+
+.toggle-button.is-translated {
+  background-color: #c6f6d5;
+  color: #276749;
+}
+
+.toggle-button.is-translated:hover {
+  background-color: #b2f5c2;
+}
+
+.button-icon {
+  font-size: 16px;
+  line-height: 1;
 }
 
 @keyframes spin {
@@ -325,5 +404,28 @@ label {
   100% {
     transform: rotate(360deg);
   }
+}
+
+@media (min-width: 768px) {
+  .toolbar {
+    flex-direction: row;
+  }
+
+  .search-section {
+    flex: 2;
+  }
+
+  .actions-section {
+    flex: 1;
+  }
+}
+
+.export-button {
+  background-color: #16915e;
+  color: white;
+}
+
+.export-button:hover {
+  background-color: #147a4f;
 }
 </style>

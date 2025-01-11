@@ -30,13 +30,9 @@
     <div v-if="filesLoaded" class="main-content">
       <Sidebar :rootNode="rootNode" @select-file="selectFile" />
       <div class="content-area">
-        <button @click="exportFiles"
-          style="right: 50px;position: absolute; background-color: #16915e; color: white; padding: 8px;">Exportar
-          Arquivos
-          Traduzidos</button>
         <div v-if="selectedFile">
           <TranslationForm :fileName="selectedFile" :content="mergedContent[selectedFile]"
-            @update-content="updateContent" />
+            @update-content="updateContent" @export="exportFiles" />
         </div>
         <div v-else>
           <p>Selecione um arquivo na barra lateral para começar a traduzir.</p>
