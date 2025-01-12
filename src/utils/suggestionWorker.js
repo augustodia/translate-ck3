@@ -2,8 +2,10 @@ import { translateText, TRANSLATION_SERVICES } from "./translationAPI";
 
 // Web Worker para processar sugestões
 const createSearchIndex = (content) => {
-  const index = {};
-  const wordMap = new Map();
+  const index = {
+    translations: {},
+    words: {},
+  };
 
   // Processa cada arquivo e suas traduções
   for (const [fileName, fileContent] of Object.entries(content)) {
@@ -26,25 +28,21 @@ const createSearchIndex = (content) => {
         const translationId = `${fileName}:${key}`;
 
         // Armazena a tradução completa
-        if (!index.translations) {
-          index.translations = {};
-        }
         index.translations[translationId] = {
           key,
           value: entry.value,
           fileName,
-          words: new Set(words),
+          words: words, // Agora é um array ao invés de Set
         };
 
         // Indexa por palavras
         words.forEach((word) => {
-          if (!index.words) {
-            index.words = {};
-          }
           if (!index.words[word]) {
-            index.words[word] = new Set();
+            index.words[word] = [];
           }
-          index.words[word].add(translationId);
+          if (!index.words[word].includes(translationId)) {
+            index.words[word].push(translationId);
+          }
         });
       }
     }
@@ -65,21 +63,19 @@ const findSimilarTranslations = async (
   const autoTranslation = await translateText(searchText, targetLanguage);
 
   // Busca sugestões baseadas em traduções existentes
-  const searchWords = new Set(
-    searchText
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(
-        (word) =>
-          word.length > 3 &&
-          !word.includes("|") &&
-          !word.includes("(") &&
-          !word.startsWith("get") &&
-          !word.match(/^\d+$/)
-      )
-  );
+  const searchWords = searchText
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(
+      (word) =>
+        word.length > 3 &&
+        !word.includes("|") &&
+        !word.includes("(") &&
+        !word.startsWith("get") &&
+        !word.match(/^\d+$/)
+    );
 
-  if (searchWords.size === 0 && !autoTranslation) return [];
+  if (searchWords.length === 0 && !autoTranslation) return [];
 
   const scores = new Map();
 
@@ -103,12 +99,12 @@ const findSimilarTranslations = async (
         let score = 0;
 
         // Palavras em comum
-        const commonWords = [...searchWords].filter((w) =>
-          translation.words.has(w)
+        const commonWords = searchWords.filter((w) =>
+          translation.words.includes(w)
         );
         score +=
           (commonWords.length /
-            Math.max(searchWords.size, translation.words.size)) *
+            Math.max(searchWords.length, translation.words.length)) *
           3;
 
         // Bônus para correspondências exatas de palavras
@@ -127,9 +123,10 @@ const findSimilarTranslations = async (
           score -= 1;
         }
 
+        const currentScore = scores.get(translationId)?.score || 0;
         scores.set(translationId, {
           ...translation,
-          score: (scores.get(translationId)?.score || 0) + score,
+          score: currentScore + score,
         });
       }
     }

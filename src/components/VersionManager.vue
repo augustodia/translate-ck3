@@ -165,6 +165,7 @@
 
 <script>
 import { defineComponent, ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { saveTranslations } from '../services/indexedDB';
 
 export default defineComponent({
   name: 'VersionManager',
@@ -418,6 +419,24 @@ export default defineComponent({
         })
       }
     }, { deep: true })
+
+    const handleVersionRestore = (entry) => {
+      setLoading(true, 'Restaurando versão...')
+      try {
+        const updatedContent = { ...props.content }
+        updatedContent[entry.key] = entry.content
+
+        if (validateContent(updatedContent)) {
+          emit('update-content', updatedContent)
+          // Salvar no IndexedDB
+          saveTranslations(updatedContent, props.mergedContent, props.fileName);
+        }
+      } catch (err) {
+        handleError(err)
+      } finally {
+        setLoading(false)
+      }
+    }
 
     return {
       showModal,

@@ -21,6 +21,7 @@
         <input type="file" id="updatedOriginalZip" @change="handleUpdatedOriginalUpload" accept=".zip"
           style="margin-top: 8px;" />
       </div>
+      <button @click="clearSavedData" class="clear-button">Limpar dados salvos</button>
     </div>
 
     <div v-if="loading" style="display: flex; justify-content: center; align-items: center;">
@@ -45,12 +46,13 @@
 <!-- Resto do script permanece o mesmo -->
 
 <script>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import JSZip from "jszip";
 import TreeNode from "./utils/TreeNode";
 import { saveAs } from "file-saver";
 import TranslationForm from "./components/TranslationForm.vue";
 import Sidebar from "./components/Sidebar.vue"; // Novo componente
+import { saveTranslations, loadTranslations, clearTranslations } from "./services/indexedDB";
 
 export default {
   name: "App",
@@ -69,17 +71,47 @@ export default {
     const languageCode = ref('');
     const loading = ref(false);
 
+    onMounted(async () => {
+      try {
+        loading.value = true;
+        const savedData = await loadTranslations();
+        if (savedData.prevTranslation && savedData.updatedOriginal) {
+          prevTranslationContent.value = savedData.prevTranslation;
+          updatedOriginalContent.value = savedData.updatedOriginal;
+          prevTranslationZipName.value = savedData.zipName || 'arquivos_traduzidos.zip';
+          extractLanguageCodeFromPrevTranslation();
+          checkIfBothFilesLoaded();
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados salvos:', error);
+      } finally {
+        loading.value = false;
+      }
+    });
+
     const handlePrevTranslationUpload = async (event) => {
       const file = event.target.files[0];
       if (file && file.name.endsWith('.zip')) {
-        loading.value = true
-        const zip = await JSZip.loadAsync(file);
-        prevTranslationZipName.value = file.name; // Armazenar o nome do arquivo ZIP
-        await extractFiles(zip, prevTranslationContent);
-        // Após extrair os arquivos, obtenha o código da língua
-        extractLanguageCodeFromPrevTranslation();
-        checkIfBothFilesLoaded();
-        loading.value = false
+        loading.value = true;
+        try {
+          const zip = await JSZip.loadAsync(file);
+          prevTranslationZipName.value = file.name;
+          await extractFiles(zip, prevTranslationContent);
+          extractLanguageCodeFromPrevTranslation();
+          checkIfBothFilesLoaded();
+
+          // Salvar no IndexedDB - Garantir que os dados são objetos simples
+          await saveTranslations(
+            prevTranslationContent.value,
+            updatedOriginalContent.value,
+            prevTranslationZipName.value
+          );
+        } catch (error) {
+          console.error('Erro ao processar arquivo:', error);
+          alert('Erro ao processar o arquivo. Por favor, tente novamente.');
+        } finally {
+          loading.value = false;
+        }
       } else {
         alert('Por favor, selecione um arquivo ZIP válido para a Tradução Anterior.');
       }
@@ -103,13 +135,26 @@ export default {
     const handleUpdatedOriginalUpload = async (event) => {
       const file = event.target.files[0];
       if (file && file.name.endsWith('.zip')) {
-        loading.value = true
-        const zip = new JSZip();
-        const content = await file.arrayBuffer();
-        const zipContent = await zip.loadAsync(content);
-        await extractFiles(zipContent, updatedOriginalContent);
-        checkIfBothFilesLoaded();
-        loading.value = false
+        loading.value = true;
+        try {
+          const zip = new JSZip();
+          const content = await file.arrayBuffer();
+          const zipContent = await zip.loadAsync(content);
+          await extractFiles(zipContent, updatedOriginalContent);
+          checkIfBothFilesLoaded();
+
+          // Salvar no IndexedDB - Garantir que os dados são objetos simples
+          await saveTranslations(
+            prevTranslationContent.value,
+            updatedOriginalContent.value,
+            prevTranslationZipName.value
+          );
+        } catch (error) {
+          console.error('Erro ao processar arquivo:', error);
+          alert('Erro ao processar o arquivo. Por favor, tente novamente.');
+        } finally {
+          loading.value = false;
+        }
       } else {
         alert('Por favor, selecione um arquivo ZIP válido para a Tradução Original Atualizada.');
       }
@@ -147,8 +192,9 @@ export default {
           const promise = zipEntry.async('string').then((data) => {
             const parsedData = parseTranslationFileStream(data, zipEntry.name);
             const normalizedFilename = normalizeFilename(zipEntry.name);
+            // Garantir que os dados são objetos simples
             contentObj.value[normalizedFilename] = {
-              entries: parsedData.entries,
+              entries: { ...parsedData.entries },
               languageCode: parsedData.languageCode,
             };
           });
@@ -395,8 +441,24 @@ export default {
       }
     }
 
-
-
+    const clearSavedData = async () => {
+      try {
+        loading.value = true;
+        await clearTranslations();
+        prevTranslationContent.value = {};
+        updatedOriginalContent.value = {};
+        mergedContent.value = {};
+        filesLoaded.value = false;
+        selectedFile.value = null;
+        languageCode.value = '';
+        rootNode.value = new TreeNode('/', '', true);
+      } catch (error) {
+        console.error('Erro ao limpar dados:', error);
+        alert('Erro ao limpar os dados. Por favor, tente novamente.');
+      } finally {
+        loading.value = false;
+      }
+    };
 
     return {
       rootNode,
@@ -409,7 +471,8 @@ export default {
       handleContentUpdate,
       handleUpdatedOriginalUpload,
       handlePrevTranslationUpload,
-      loading
+      loading,
+      clearSavedData
     };
   },
 };
@@ -491,5 +554,20 @@ button {
 
 .file-inputs input[type='file'] {
   display: block;
+}
+
+.clear-button {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 32px;
+  align-self: flex-start;
+}
+
+.clear-button:hover {
+  background-color: #c82333;
 }
 </style>

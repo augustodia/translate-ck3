@@ -105,6 +105,7 @@ import { validateYamlContent } from '../utils/validation';
 import { suggestionService } from '../utils/suggestionService';
 import RecentFiles from './RecentFiles.vue';
 import { useRecentFilesStore } from '../stores/recentFiles';
+import { saveTranslations } from '../services/indexedDB';
 
 // Função de debounce
 const debounce = (fn, delay) => {
@@ -254,6 +255,9 @@ export default defineComponent({
 
         if (validateContent(updatedContent)) {
           emit('update-content', updatedContent)
+          // Salvar no IndexedDB - Garantir que os dados são objetos simples
+          const currentContent = { ...updatedContent };
+          await saveTranslations(currentContent, props.mergedContent, props.fileName);
         }
       } catch (err) {
         handleError(err)
@@ -315,6 +319,9 @@ export default defineComponent({
 
         if (validateContent(newContent)) {
           emit('update-content', newContent);
+          // Salvar no IndexedDB - Garantir que os dados são objetos simples
+          const currentContent = { ...newContent };
+          saveTranslations(currentContent, props.mergedContent, props.fileName);
         }
       } catch (err) {
         handleError(err)
@@ -332,6 +339,9 @@ export default defineComponent({
 
         if (validateContent(updatedContent)) {
           emit('update-content', updatedContent)
+          // Salvar no IndexedDB - Garantir que os dados são objetos simples
+          const currentContent = { ...updatedContent };
+          saveTranslations(currentContent, props.mergedContent, props.fileName);
         }
       } catch (err) {
         handleError(err)
